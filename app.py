@@ -16,8 +16,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gyomu.db'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
 
-with app.app_context():
-    db.create_all()
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
