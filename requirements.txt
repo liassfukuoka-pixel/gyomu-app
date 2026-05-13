@@ -1,0 +1,9 @@
+flask 
+flask-sqlalchemy 
+werkzeug 
+openpyxl 
+anthropic 
+pymupdf 
+python-dotenv 
+imapclient 
+gunicorn
