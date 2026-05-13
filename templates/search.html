@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>🔍 管理番号検索</h2>
+
+  <form method="get" action="/search" class="mb-4">
+    <div class="input-group">
+      <input type="text" name="q" class="form-control" placeholder="管理番号を入力（例：K262064265）" value="{{ q }}">
+      <button type="submit" class="btn btn-primary">検索</button>
+    </div>
+  </form>
+
+  {% if q %}
+    {% if orders %}
+      <p>「{{ q }}」の検索結果：{{ orders|length }}件</p>
+      <table class="table table-bordered table-hover">
+        <thead class="table-dark">
+          <tr>
+            <th>管理番号</th>
+            <th>依頼元</th>
+            <th>依頼日</th>
+            <th>ユーザー名</th>
+            <th>作業場所</th>
+            <th>作業内容</th>
+            <th>担当者</th>
+            <th>金額</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+          <tr>
+            <td>{{ order.management_no }}</td>
+            <td>{{ order.client.name }}</td>
+            <td>{{ order.request_date }}</td>
+            <td>{{ order.user_name }}</td>
+            <td>{{ order.work_place }}</td>
+            <td>{{ order.work_content }}</td>
+            <td>{{ order.tantou }}</td>
+            <td>{{ "{:,.0f}".format(order.amount or 0) }}円</td>
+            <td>
+              <a href="/order/{{ order.id }}/edit" class="btn btn-sm btn-warning">編集</a>
+              <form method="post" action="/order/{{ order.id }}/delete" style="display:inline;" onsubmit="return confirm('削除しますか？')">
+                <button type="submit" class="btn btn-sm btn-danger">削除</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="alert alert-warning">「{{ q }}」に一致する管理番号は見つかりませんでした。</div>
+    {% endif %}
+  {% else %}
+    <div class="alert alert-info">管理番号を入力して検索してください。</div>
+  {% endif %}
+
+  <a href="/" class="btn btn-secondary mt-2">← トップに戻る</a>
+</div>
+{% endblock %}

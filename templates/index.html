@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <div class="card mb-4">
+      <div class="card-header"><h5>PDFアップロード</h5></div>
+      <div class="card-body">
+        <form method="POST" action="/upload" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label class="form-label">依頼元</label>
+            <select name="client_id" class="form-select" required>
+              <option value="">選択してください</option>
+              {% for c in clients %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">PDF（ファイル名が管理番号になります）</label>
+            <input type="file" name="pdf" class="form-control" accept=".pdf" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">アップロード</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">全依頼一覧</h5>
+        <a href="/export/all" class="btn btn-sm btn-success">Excelで出力</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>管理番号</th>
+              <th>依頼元</th>
+              <th>依頼日</th>
+              <th>ユーザー名</th>
+              <th>作業場所</th>
+              <th>作業内容</th>
+              <th>担当者</th>
+              <th>金額</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in orders %}
+            <tr>
+              <td>{{ o.management_no }}</td>
+              <td>{{ o.client.name }}</td>
+              <td>{{ o.request_date or '-' }}</td>
+              <td>{{ o.user_name or '-' }}</td>
+              <td>{{ o.work_place[:15] ~ '...' if o.work_place and o.work_place|length > 15 else o.work_place or '-' }}</td>
+              <td>{{ o.work_content[:15] ~ '...' if o.work_content and o.work_content|length > 15 else o.work_content or '-' }}</td>
+              <td>{{ o.tantou or '-' }}</td>
+              <td>{{ '¥{:,.0f}'.format(o.amount) if o.amount else '-' }}</td>
+              <td>
+                <a href="/pdf/{{ o.id }}" target="_blank" class="btn btn-sm btn-outline-info">PDF</a>
+              <a href="/order/{{ o.id }}/edit" class="btn btn-sm btn-outline-primary">編集</a>
+                <form method="POST" action="/order/{{ o.id }}/delete" style="display:inline" onsubmit="return confirm('削除しますか？')">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">削除</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}

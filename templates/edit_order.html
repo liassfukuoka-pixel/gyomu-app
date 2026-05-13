@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header"><h5>依頼内容の確認・編集 - {{ order.management_no }}</h5></div>
+      <div class="card-body">
+        <form method="POST">
+          <div class="mb-3">
+            <label class="form-label">依頼日</label>
+            <input type="text" name="request_date" class="form-control" value="{{ order.request_date }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">ユーザー名</label>
+            <input type="text" name="user_name" class="form-control" value="{{ order.user_name }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">作業場所</label>
+            <input type="text" name="work_place" class="form-control" value="{{ order.work_place }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">作業内容</label>
+            <textarea name="work_content" class="form-control" rows="3">{{ order.work_content }}</textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">担当者名</label>
+            <input type="text" name="tantou" class="form-control" value="{{ order.tantou }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">金額（円）</label>
+            <input type="number" name="amount" class="form-control" value="{{ order.amount }}">
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary w-100">保存</button>
+            <a href="/" class="btn btn-secondary w-100">キャンセル</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

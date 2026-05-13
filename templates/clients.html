@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <div class="card mb-4">
+      <div class="card-header"><h5>依頼元を登録</h5></div>
+      <div class="card-body">
+        <form method="POST">
+          <div class="mb-3">
+            <label class="form-label">会社名</label>
+            <input type="text" name="name" class="form-control" placeholder="例：〇〇株式会社" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">メールドメイン（@以降）</label>
+            <div class="input-group">
+              <span class="input-group-text">@</span>
+              <input type="text" name="email_domain" class="form-control" placeholder="例：abc-corp.com" required>
+            </div>
+            <div class="form-text">同じドメインのメールは全て同じ依頼元として扱われます</div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">登録</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header"><h5>依頼元一覧</h5></div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>会社名</th>
+              <th>メールドメイン</th>
+              <th>依頼件数</th>
+              <th>請求書出力</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in clients %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td>@{{ c.email_domain }}</td>
+              <td>{{ c.orders|length }}件</td>
+              <td>
+                <a href="/export/client/{{ c.id }}" class="btn btn-sm btn-success">Excel出力</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
