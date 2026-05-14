@@ -12,7 +12,7 @@ load_dotenv(override=True)
 
 app = Flask(__name__)
 app.secret_key = 'gyomu_secret_key'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///gyomu.db').replace('postgres://', 'postgresql://')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gyomu.db'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
 
