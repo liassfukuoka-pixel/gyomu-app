@@ -33,16 +33,17 @@
               <th>会社名</th>
               <th>メールドメイン</th>
               <th>依頼件数</th>
-              <th>請求書出力</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
             {% for c in clients %}
             <tr>
-              <td>{{ c.name }}</td>
+              <td><a href="/client/{{ c.id }}/orders">{{ c.name }}</a></td>
               <td>@{{ c.email_domain }}</td>
               <td>{{ c.orders|length }}件</td>
               <td>
+                <a href="/client/{{ c.id }}/orders" class="btn btn-sm btn-outline-primary">一覧</a>
                 <a href="/export/client/{{ c.id }}" class="btn btn-sm btn-success">Excel出力</a>
               </td>
             </tr>

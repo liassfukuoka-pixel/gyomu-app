@@ -1,61 +1,76 @@
-{% extends "base.html" %}
-
+{% extends 'base.html' %}
 {% block content %}
-<div class="container mt-4">
-  <h2>🔍 管理番号検索</h2>
-
-  <form method="get" action="/search" class="mb-4">
-    <div class="input-group">
-      <input type="text" name="q" class="form-control" placeholder="管理番号を入力（例：K262064265）" value="{{ q }}">
+<div class="card mb-4">
+  <div class="card-body">
+    <h5>🔍 検索（管理番号・ユーザー名）</h5>
+    <form method="GET" action="/search" class="d-flex gap-2">
+      <input type="text" name="q" class="form-control" placeholder="管理番号またはユーザー名を入力" value="{{ q or '' }}">
       <button type="submit" class="btn btn-primary">検索</button>
-    </div>
-  </form>
-
-  {% if q %}
-    {% if orders %}
-      <p>「{{ q }}」の検索結果：{{ orders|length }}件</p>
-      <table class="table table-bordered table-hover">
-        <thead class="table-dark">
-          <tr>
-            <th>管理番号</th>
-            <th>依頼元</th>
-            <th>依頼日</th>
-            <th>ユーザー名</th>
-            <th>作業場所</th>
-            <th>作業内容</th>
-            <th>担当者</th>
-            <th>金額</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for order in orders %}
-          <tr>
-            <td>{{ order.management_no }}</td>
-            <td>{{ order.client.name }}</td>
-            <td>{{ order.request_date }}</td>
-            <td>{{ order.user_name }}</td>
-            <td>{{ order.work_place }}</td>
-            <td>{{ order.work_content }}</td>
-            <td>{{ order.tantou }}</td>
-            <td>{{ "{:,.0f}".format(order.amount or 0) }}円</td>
-            <td>
-              <a href="/order/{{ order.id }}/edit" class="btn btn-sm btn-warning">編集</a>
-              <form method="post" action="/order/{{ order.id }}/delete" style="display:inline;" onsubmit="return confirm('削除しますか？')">
-                <button type="submit" class="btn btn-sm btn-danger">削除</button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="alert alert-warning">「{{ q }}」に一致する管理番号は見つかりませんでした。</div>
-    {% endif %}
-  {% else %}
-    <div class="alert alert-info">管理番号を入力して検索してください。</div>
-  {% endif %}
-
-  <a href="/" class="btn btn-secondary mt-2">← トップに戻る</a>
+    </form>
+  </div>
 </div>
+
+{% if q %}
+  {% if orders %}
+  <div class="table-responsive d-none d-md-block">
+    <table class="table table-hover">
+      <thead class="table-dark">
+        <tr>
+          <th>管理番号</th><th>依頼元</th><th>依頼日</th><th>ユーザー名</th>
+          <th>作業場所</th><th>作業内容</th><th>担当者</th><th>金額</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr class="{{ 'table-success' if o.completed_at else '' }}">
+          <td>{{ o.management_no }}</td>
+          <td>{{ o.client.name }}</td>
+          <td>{{ o.request_date or '-' }}</td>
+          <td>{{ o.user_name or '-' }}</td>
+          <td>{{ o.work_place or '-' }}</td>
+          <td>{{ o.work_content or '-' }}</td>
+          <td>{{ o.tantou or '-' }}</td>
+          <td>{{ '¥{:,.0f}'.format(o.amount) if o.amount else '-' }}</td>
+          <td>
+            <a href="/pdf/{{ o.id }}" target="_blank" class="btn btn-sm btn-outline-info">PDF</a>
+            <a href="/order/{{ o.id }}/edit" class="btn btn-sm btn-outline-primary">編集</a>
+            {% if not o.completed_at %}
+            <a href="/order/{{ o.id }}/complete" class="btn btn-sm btn-outline-success">完了</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-md-none">
+    {% for o in orders %}
+    <div class="border-bottom p-3 {{ 'bg-success bg-opacity-10' if o.completed_at else '' }}">
+      <div class="d-flex justify-content-between align-items-start mb-1">
+        <strong>{{ o.management_no }}</strong>
+        <span class="badge {{ 'bg-success' if o.completed_at else 'bg-secondary' }}">{{ o.client.name }}</span>
+      </div>
+      <div class="text-muted small mb-1">{{ o.request_date or '-' }}　{{ o.user_name or '-' }}</div>
+      <div class="small mb-1">{{ o.work_place or '-' }}</div>
+      <div class="small mb-2">{{ o.work_content or '-' }}</div>
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="fw-bold">{{ '¥{:,.0f}'.format(o.amount) if o.amount else '-' }}</span>
+        <div>
+          <a href="/pdf/{{ o.id }}" target="_blank" class="btn btn-sm btn-outline-info">PDF</a>
+          {% if not o.completed_at %}
+          <a href="/order/{{ o.id }}/complete" class="btn btn-sm btn-outline-success">完了</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-warning">「{{ q }}」の検索結果はありませんでした。</div>
+  {% endif %}
+{% else %}
+<div class="alert alert-info">管理番号またはユーザー名を入力して検索してください。</div>
+{% endif %}
+
+<a href="/" class="btn btn-secondary mt-3">← トップに戻る</a>
 {% endblock %}

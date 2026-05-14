@@ -2,7 +2,7 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
-import os, json, imaplib, email
+import os, json, imaplib, email, shutil
 from email.header import decode_header
 from dotenv import load_dotenv
 import anthropic
@@ -15,7 +15,6 @@ app.secret_key = 'gyomu_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///gyomu.db'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
-
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -64,7 +63,28 @@ def extract_pdf_info(pdf_path):
             max_tokens=1000,
             messages=[{
                 "role": "user",
-                "content": "以下の依頼書テキストから情報を抽出してください。必ずJSON形式のみで返答してください。\n{\"request_date\": \"依頼日\", \"work_content\": \"作業内容\", \"amount\": \"金額\", \"tantou\": \"担当者\", \"user_name\": \"ユーザー名\", \"work_place\": \"作業場所\"}\n依頼書テキスト：\n" + text[:3000]
+                "content": """以下の依頼書テキストから情報を抽出してください。必ずJSON形式のみで返答してください。
+
+この依頼書はアライ電機産業から合同会社LIASSへの作業依頼書です。
+依頼書には「依頼会社」と「ユーザー」という2つの異なる欄があります。
+
+抽出ルール：
+- request_date: 依頼日または発行日
+- work_content: 作業内容（品名・作業指示の内容）
+- amount: 工賃合計金額（数字のみ）
+- tantou: 「ご担当者」欄の名前のみ（「様」は除く）
+- user_name: 必ず「ユーザー」と明記された欄の内容のみ。「依頼会社」欄の内容は絶対に使わない。「合同会社LIASS」「山元」「山元様」は絶対に入れない。
+- work_place: 「車輌入庫場所」または「作業場所」欄の内容
+
+重要：
+- 「依頼会社」欄（例：日本カーソリューションズ、オリックス自動車、住友三井オートサービス、トヨタレンタリースなど）はuser_nameに使わない
+- 「ユーザー」欄（依頼会社の下にある欄）の内容だけをuser_nameに使う
+- 依頼書冒頭の「合同会社 LIASS」「山元 様」は送付先なので無視する
+
+{"request_date": "", "work_content": "", "amount": "", "tantou": "", "user_name": "", "work_place": ""}
+
+依頼書テキスト：
+""" + text[:3000]
             }]
         )
         text_response = message.content[0].text.strip()
@@ -168,6 +188,39 @@ def fetch_mail():
     flash('メール取込完了：' + str(count) + '件登録、' + str(skip) + '件スキップ', 'success')
     return redirect(url_for('index'))
 
+@app.route('/reread_all', methods=['POST'])
+def reread_all():
+    orders = Order.query.filter(db.or_(
+        Order.user_name.like('%LIASS%'),
+        Order.user_name.like('%山元%'),
+        Order.user_name.like('%日本カーソリューションズ%'),
+        Order.user_name.like('%オリックス自動車%'),
+        Order.user_name.like('%住友三井%'),
+        Order.user_name.like('%トヨタレンタリース%')
+    )).all()
+    count = 0
+    skip = 0
+    total = len(orders)
+    for order in orders:
+        folder = os.path.join(app.config['UPLOAD_FOLDER'], order.client.name)
+        filepath = os.path.join(folder, order.filename)
+        if not os.path.exists(filepath):
+            print('ファイルなし:', filepath)
+            skip += 1
+            continue
+        info = extract_pdf_info(filepath)
+        if info.get('user_name'):
+            order.user_name = info.get('user_name')
+        if info.get('tantou'):
+            order.tantou = info.get('tantou')
+        if info.get('work_place'):
+            order.work_place = info.get('work_place')
+        db.session.commit()
+        count += 1
+        print('更新:', order.management_no, count, '/', total)
+    flash('再読み込み完了：' + str(count) + '件更新、' + str(skip) + '件スキップ', 'success')
+    return redirect(url_for('index'))
+
 @app.route('/clients', methods=['GET', 'POST'])
 def clients():
     if request.method == 'POST':
@@ -186,6 +239,14 @@ def clients():
         return redirect(url_for('clients'))
     all_clients = Client.query.all()
     return render_template('clients.html', clients=all_clients)
+
+@app.route('/client/<int:client_id>/orders')
+def client_orders(client_id):
+    client = Client.query.get_or_404(client_id)
+    orders = Order.query.filter_by(client_id=client_id).order_by(Order.created_at.desc()).all()
+    total = sum(o.amount or 0 for o in orders)
+    now = datetime.now()
+    return render_template('client_orders.html', client=client, orders=orders, total=total, now_year=now.year, now_month=now.month)
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -232,7 +293,15 @@ def view_pdf(order_id):
 @app.route('/search')
 def search():
     q = request.args.get('q', '')
-    orders = Order.query.filter(Order.management_no.contains(q)).all() if q else []
+    if q:
+        orders = Order.query.filter(
+            db.or_(
+                Order.management_no.contains(q),
+                Order.user_name.contains(q)
+            )
+        ).all()
+    else:
+        orders = []
     return render_template('search.html', orders=orders, q=q)
 
 @app.route('/order/<int:order_id>/edit', methods=['GET', 'POST'])
@@ -245,8 +314,6 @@ def edit_order(order_id):
         order.request_date = request.form.get('request_date', '')
         order.user_name = request.form.get('user_name', '')
         order.work_place = request.form.get('work_place', '')
-        if not order.completed_at:
-            order.completed_at = datetime.now()
         db.session.commit()
         flash('管理番号 ' + order.management_no + ' を更新しました', 'success')
         return redirect(url_for('index'))
@@ -259,6 +326,35 @@ def delete_order(order_id):
     db.session.commit()
     flash('削除しました', 'success')
     return redirect(url_for('index'))
+
+@app.route('/order/<int:order_id>/complete', methods=['GET', 'POST'])
+def complete_order(order_id):
+    order = Order.query.get_or_404(order_id)
+    if request.method == 'POST':
+        worker_name = request.form.get('worker_name', '')
+        completed_date = request.form.get('completed_date', '')
+        order.tantou = worker_name
+        if completed_date:
+            order.completed_at = datetime.strptime(completed_date, '%Y-%m-%d')
+        else:
+            order.completed_at = datetime.now()
+        db.session.commit()
+        flash('完了報告を保存しました：' + order.management_no, 'success')
+        return redirect(url_for('completed'))
+    return render_template('complete_order.html', order=order)
+
+@app.route('/order/<int:order_id>/uncomplete', methods=['POST'])
+def uncomplete_order(order_id):
+    order = Order.query.get_or_404(order_id)
+    order.completed_at = None
+    db.session.commit()
+    flash('完了を取り消しました：' + order.management_no, 'success')
+    return redirect(url_for('index'))
+
+@app.route('/completed')
+def completed():
+    orders = Order.query.filter(Order.completed_at != None).order_by(Order.completed_at.desc()).all()
+    return render_template('completed.html', orders=orders)
 
 @app.route('/export/client/<int:client_id>')
 def export_client(client_id):
@@ -275,6 +371,88 @@ def export_client(client_id):
         total += o.amount or 0
     ws.append(['', '', '', '', '', '', '合計', total])
     path = 'invoice_' + client.name + '.xlsx'
+    wb.save(path)
+    return send_file(path, as_attachment=True)
+
+@app.route('/export/invoice/<int:client_id>', methods=['POST'])
+def export_invoice(client_id):
+    from openpyxl import load_workbook
+    client = Client.query.get_or_404(client_id)
+    year = int(request.form.get('year'))
+    month = int(request.form.get('month'))
+    orders = Order.query.filter(
+        Order.client_id == client_id,
+        Order.completed_at != None,
+        db.extract('year', Order.completed_at) == year,
+        db.extract('month', Order.completed_at) == month
+    ).order_by(Order.completed_at).all()
+    if not orders:
+        flash(str(year) + '年' + str(month) + '月の完了案件はありません', 'error')
+        return redirect(url_for('client_orders', client_id=client_id))
+    template_path = 'アライ請求書テンプレート.xlsx'
+    wb = load_workbook(template_path)
+    ws = wb.worksheets[0]
+    ws.title = str(month) + '月'
+    issue_date = str(year) + '年' + str(month) + '月末日'
+    ticket_no = 'LIASS-A-' + str(year) + '-' + str(month)
+    try:
+        ws['M2'] = issue_date
+    except:
+        pass
+    try:
+        ws['M3'] = ticket_no
+    except:
+        pass
+    try:
+        ws['B7'] = client.name + '　御中'
+    except:
+        pass
+    start_row = 16
+    for row_num in range(start_row, ws.max_row+1):
+        for col_num in range(1, 16):
+            try:
+                ws.cell(row=row_num, column=col_num).value = None
+            except:
+                pass
+    subtotal = sum(o.amount or 0 for o in orders)
+    tax = round(subtotal * 0.1)
+    total = subtotal + tax
+    try:
+        ws['E12'] = total
+    except:
+        pass
+    for row_idx, o in enumerate(orders, start_row):
+        data = [
+            (1, o.completed_at.strftime('%Y/%m/%d') if o.completed_at else ''),
+            (4, o.management_no),
+            (6, o.user_name or ''),
+            (7, '様'),
+            (8, '〇'),
+            (9, o.work_content or ''),
+            (11, o.amount or 0)
+        ]
+        for col, val in data:
+            try:
+                ws.cell(row=row_idx, column=col, value=val)
+            except:
+                pass
+    last_row = start_row + len(orders)
+    for col, val in [(1, '合計（外税）'), (6, subtotal)]:
+        try:
+            ws.cell(row=last_row, column=col, value=val)
+        except:
+            pass
+    for col, val in [(1, '消費税（10%）'), (6, tax)]:
+        try:
+            ws.cell(row=last_row+1, column=col, value=val)
+        except:
+            pass
+    for col, val in [(1, '合計（内税）'), (6, total)]:
+        try:
+            ws.cell(row=last_row+2, column=col, value=val)
+        except:
+            pass
+    path = '請求書_' + client.name + '_' + str(year) + str(month).zfill(2) + '.xlsx'
     wb.save(path)
     return send_file(path, as_attachment=True)
 
