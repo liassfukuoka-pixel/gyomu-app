@@ -7,3 +7,4 @@ pymupdf
 python-dotenv 
 imapclient 
 gunicorn
+psycopg2-binary
